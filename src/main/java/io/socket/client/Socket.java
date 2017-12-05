@@ -210,7 +210,7 @@ public class Socket extends Emitter {
                     Socket.this.sendBuffer.add(packet);
                 }
             }
-        }, this);
+        });
         return this;
     }
 
