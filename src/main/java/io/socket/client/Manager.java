@@ -452,7 +452,7 @@ public class Manager extends Emitter {
         this.close();
     }
 
-    /*package*/ void packet(Packet packet) {
+    /*package*/ void packet(Packet packet, final Runnable onFlushCallback) {
         logger.fine(String.format("writing packet %s", packet));
         final Manager self = this;
 
@@ -463,13 +463,13 @@ public class Manager extends Emitter {
                 public void call(Object[] encodedPackets) {
                     for (Object packet : encodedPackets) {
                         if (packet instanceof String) {
-                            self.engine.write((String)packet);
+                            self.engine.write((String) packet, onFlushCallback);
                         } else if (packet instanceof byte[]) {
-                            self.engine.write((byte[])packet);
+                            self.engine.write((byte[])packet, onFlushCallback);
                         }
                     }
                     self.encoding = false;
-                    self.processPacketQueue();
+                    self.processPacketQueue(onFlushCallback);
                 }
             });
         } else {
@@ -477,10 +477,10 @@ public class Manager extends Emitter {
         }
     }
 
-    private void processPacketQueue() {
+    private void processPacketQueue(final Runnable onFlushCallback) {
         if (!this.packetBuffer.isEmpty() && !this.encoding) {
             Packet pack = this.packetBuffer.remove(0);
-            this.packet(pack);
+            this.packet(pack, onFlushCallback);
         }
     }
 

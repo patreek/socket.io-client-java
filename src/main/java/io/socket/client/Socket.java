@@ -184,7 +184,8 @@ public class Socket extends Emitter {
 
                 JSONArray jsonArgs = new JSONArray();
                 for (Object arg : _args) {
-                    jsonArgs.put(arg);
+                    if (arg != null)
+                        jsonArgs.put(arg);
                 }
                 int parserType = HasBinary.hasBinary(jsonArgs) ? Parser.BINARY_EVENT : Parser.EVENT;
                 Packet<JSONArray> packet = new Packet<JSONArray>(parserType, jsonArgs);
@@ -197,13 +198,19 @@ public class Socket extends Emitter {
                     packet.id = Socket.this.ids++;
                 }
 
+                Runnable onFlushCallback = null;
+                if (_args.get(_args.size() - 1) instanceof Runnable) {
+                    onFlushCallback = (Runnable)_args.get(_args.size() - 1);
+                    packet.data = remove(jsonArgs, jsonArgs.length() - 1);
+                }
+
                 if (Socket.this.connected) {
-                    Socket.this.packet(packet);
+                    Socket.this.packet(packet, onFlushCallback);
                 } else {
                     Socket.this.sendBuffer.add(packet);
                 }
             }
-        });
+        }, this);
         return this;
     }
 
@@ -253,22 +260,22 @@ public class Socket extends Emitter {
                 Socket.this.acks.put(ids, ack);
                 packet.id = ids++;
 
-                Socket.this.packet(packet);
+                Socket.this.packet(packet, null);
             }
         });
         return this;
     }
 
-    private void packet(Packet packet) {
+    private void packet(Packet packet, final Runnable onFlushCallback) {
         packet.nsp = this.nsp;
-        this.io.packet(packet);
+        this.io.packet(packet, onFlushCallback);
     }
 
     private void onopen() {
         logger.fine("transport is open - connecting");
 
         if (!"/".equals(this.nsp)) {
-            this.packet(new Packet(Parser.CONNECT));
+            this.packet(new Packet(Parser.CONNECT), null);
         }
     }
 
@@ -365,7 +372,7 @@ public class Socket extends Emitter {
                             ? Parser.BINARY_ACK : Parser.ACK;
                         Packet<JSONArray> packet = new Packet<JSONArray>(type, jsonArgs);
                         packet.id = id;
-                        self.packet(packet);
+                        self.packet(packet, null);
                     }
                 });
             }
@@ -398,7 +405,7 @@ public class Socket extends Emitter {
 
         Packet<JSONArray> packet;
         while ((packet = this.sendBuffer.poll()) != null) {
-            this.packet(packet);
+            this.packet(packet, null);
         }
         this.sendBuffer.clear();
     }
@@ -432,7 +439,7 @@ public class Socket extends Emitter {
             public void run() {
                 if (Socket.this.connected) {
                     logger.fine(String.format("performing disconnect (%s)", Socket.this.nsp));
-                    Socket.this.packet(new Packet(Parser.DISCONNECT));
+                    Socket.this.packet(new Packet(Parser.DISCONNECT), null);
                 }
 
                 Socket.this.destroy();
